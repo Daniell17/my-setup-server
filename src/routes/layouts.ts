@@ -5,12 +5,30 @@ import { WorkspaceObject } from "../types";
 
 const router = Router();
 
+// GET /api/layouts/community - Get public layouts
+router.get(
+  "/community",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const layouts = await layoutStore.getPublic();
+
+      res.json({
+        success: true,
+        data: layouts,
+        message: "Public layouts retrieved successfully",
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // GET /api/layouts - Get all layouts
-router.get("/", (req: Request, res: Response, next: NextFunction) => {
+router.get("/", async (req: Request, res: Response, next: NextFunction) => {
   try {
     // Optional: filter by userId from query params (for future auth)
     const userId = req.query.userId as string | undefined;
-    const layouts = layoutStore.getAll(userId);
+    const layouts = await layoutStore.getAll(userId);
 
     res.json({
       success: true,
@@ -23,10 +41,10 @@ router.get("/", (req: Request, res: Response, next: NextFunction) => {
 });
 
 // GET /api/layouts/:id - Get a specific layout
-router.get("/:id", (req: Request, res: Response, next: NextFunction) => {
+router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    const layout = layoutStore.getById(id);
+    const layout = await layoutStore.getById(id);
 
     if (!layout) {
       throw new AppError("Layout not found", 404);
@@ -42,7 +60,7 @@ router.get("/:id", (req: Request, res: Response, next: NextFunction) => {
 });
 
 // POST /api/layouts - Create a new layout
-router.post("/", (req: Request, res: Response, next: NextFunction) => {
+router.post("/", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { name, objects, userId, isPublic } = req.body;
 
@@ -68,7 +86,7 @@ router.post("/", (req: Request, res: Response, next: NextFunction) => {
       }
     );
 
-    const layout = layoutStore.create({
+    const layout = await layoutStore.create({
       name: name.trim(),
       objects: validObjects,
       userId,
@@ -86,12 +104,13 @@ router.post("/", (req: Request, res: Response, next: NextFunction) => {
 });
 
 // PUT /api/layouts/:id - Update a layout
-router.put("/:id", (req: Request, res: Response, next: NextFunction) => {
+router.put("/:id", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const { name, objects, isPublic } = req.body;
 
-    if (!layoutStore.exists(id)) {
+    const exists = await layoutStore.exists(id);
+    if (!exists) {
       throw new AppError("Layout not found", 404);
     }
 
@@ -134,7 +153,7 @@ router.put("/:id", (req: Request, res: Response, next: NextFunction) => {
       updates.isPublic = isPublic;
     }
 
-    const updated = layoutStore.update(id, updates);
+    const updated = await layoutStore.update(id, updates);
 
     if (!updated) {
       throw new AppError("Failed to update layout", 500);
@@ -151,27 +170,31 @@ router.put("/:id", (req: Request, res: Response, next: NextFunction) => {
 });
 
 // DELETE /api/layouts/:id - Delete a layout
-router.delete("/:id", (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { id } = req.params;
+router.delete(
+  "/:id",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
 
-    if (!layoutStore.exists(id)) {
-      throw new AppError("Layout not found", 404);
+      const exists = await layoutStore.exists(id);
+      if (!exists) {
+        throw new AppError("Layout not found", 404);
+      }
+
+      const deleted = await layoutStore.delete(id);
+
+      if (!deleted) {
+        throw new AppError("Failed to delete layout", 500);
+      }
+
+      res.json({
+        success: true,
+        message: "Layout deleted successfully",
+      });
+    } catch (error) {
+      next(error);
     }
-
-    const deleted = layoutStore.delete(id);
-
-    if (!deleted) {
-      throw new AppError("Failed to delete layout", 500);
-    }
-
-    res.json({
-      success: true,
-      message: "Layout deleted successfully",
-    });
-  } catch (error) {
-    next(error);
   }
-});
+);
 
 export default router;

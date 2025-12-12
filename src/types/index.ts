@@ -35,6 +35,7 @@ export interface WorkspaceObject {
   };
   price?: number;
   groupId?: string;
+  modelUrl?: string;
 }
 
 export interface Layout {

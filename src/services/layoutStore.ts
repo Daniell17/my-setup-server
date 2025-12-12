@@ -1,87 +1,81 @@
-import { Layout, WorkspaceObject } from "../types";
+import LayoutModel, { ILayout } from "../models/Layout";
+import { WorkspaceObject } from "../types";
 
-// In-memory storage for layouts
-// In production, this would be replaced with a database
 class LayoutStore {
-  private layouts: Map<string, Layout> = new Map();
-  private nextId: number = 1;
-
-  // Generate a unique ID
-  private generateId(): string {
-    return `layout_${Date.now()}_${this.nextId++}`;
+  // Get all layouts (optionally filter by userId)
+  async getAll(userId?: string): Promise<ILayout[]> {
+    if (userId) {
+      return await LayoutModel.find({ userId });
+    }
+    return await LayoutModel.find({});
   }
 
-  // Get all layouts (optionally filter by userId)
-  getAll(userId?: string): Layout[] {
-    const allLayouts = Array.from(this.layouts.values());
-    if (userId) {
-      return allLayouts.filter((layout) => layout.userId === userId);
-    }
-    return allLayouts;
+  // Get public layouts
+  async getPublic(): Promise<ILayout[]> {
+    return await LayoutModel.find({ isPublic: true }).sort({ createdAt: -1 });
   }
 
   // Get a layout by ID
-  getById(id: string): Layout | undefined {
-    return this.layouts.get(id);
+  async getById(id: string): Promise<ILayout | null> {
+    try {
+      return await LayoutModel.findById(id);
+    } catch (error) {
+      return null;
+    }
   }
 
   // Create a new layout
-  create(data: {
+  async create(data: {
     name: string;
     objects: WorkspaceObject[];
     userId?: string;
     isPublic?: boolean;
-  }): Layout {
-    const now = new Date();
-    const layout: Layout = {
-      id: this.generateId(),
+  }): Promise<ILayout> {
+    const layout = new LayoutModel({
       name: data.name,
       objects: data.objects || [],
       userId: data.userId,
       isPublic: data.isPublic ?? false,
-      createdAt: now,
-      updatedAt: now,
-    };
+    });
 
-    this.layouts.set(layout.id, layout);
-    return layout;
+    return await layout.save();
   }
 
   // Update an existing layout
-  update(
+  async update(
     id: string,
     updates: {
       name?: string;
       objects?: WorkspaceObject[];
       isPublic?: boolean;
     }
-  ): Layout | null {
-    const layout = this.layouts.get(id);
-    if (!layout) {
+  ): Promise<ILayout | null> {
+    try {
+      return await LayoutModel.findByIdAndUpdate(id, updates, { new: true });
+    } catch (error) {
       return null;
     }
-
-    const updated: Layout = {
-      ...layout,
-      ...updates,
-      updatedAt: new Date(),
-    };
-
-    this.layouts.set(id, updated);
-    return updated;
   }
 
   // Delete a layout
-  delete(id: string): boolean {
-    return this.layouts.delete(id);
+  async delete(id: string): Promise<boolean> {
+    try {
+      const result = await LayoutModel.findByIdAndDelete(id);
+      return !!result;
+    } catch (error) {
+      return false;
+    }
   }
 
   // Check if layout exists
-  exists(id: string): boolean {
-    return this.layouts.has(id);
+  async exists(id: string): Promise<boolean> {
+    try {
+      const count = await LayoutModel.countDocuments({ _id: id });
+      return count > 0;
+    } catch (error) {
+      return false;
+    }
   }
 }
 
-// Export a singleton instance
 export const layoutStore = new LayoutStore();
-
