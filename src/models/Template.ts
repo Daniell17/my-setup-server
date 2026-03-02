@@ -12,6 +12,9 @@ export interface ITemplate extends Document {
   usageCount: number;
   createdAt: Date;
   updatedAt: Date;
+  priceCents?: number;
+  currency?: string;
+  isPremium: boolean;
 }
 
 const TemplateSchema: Schema = new Schema({
@@ -23,6 +26,9 @@ const TemplateSchema: Schema = new Schema({
   isPublic: { type: Boolean, default: true },
   userId: { type: String, index: true },
   usageCount: { type: Number, default: 0 },
+  priceCents: { type: Number },
+  currency: { type: String, default: 'USD' },
+  isPremium: { type: Boolean, default: false },
 }, {
   timestamps: true,
   toJSON: {

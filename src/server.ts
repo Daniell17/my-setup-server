@@ -1,6 +1,9 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import helmet from "helmet";
+import morgan from "morgan";
+import rateLimit from "express-rate-limit";
 import apiRoutes from "./routes";
 import { errorHandler } from "./middleware/errorHandler";
 import { connectDB } from "./config/db";
@@ -18,6 +21,19 @@ app.use(
     credentials: true,
   })
 );
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false,
+  })
+);
+app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 1000,
+});
+
+app.use(limiter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

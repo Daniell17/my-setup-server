@@ -7,9 +7,9 @@ import { protect, AuthRequest } from "../middleware/authMiddleware";
 
 const router = Router();
 
-const generateToken = (id: string, username: string, email: string) => {
+const generateToken = (id: string, username: string, email: string, role: "user" | "admin") => {
   return jwt.sign(
-    { id, username, email },
+    { id, username, email, role },
     process.env.JWT_SECRET || "dev_secret",
     {
       expiresIn: "30d",
@@ -38,7 +38,7 @@ router.post(
       const salt = await bcrypt.genSalt(10);
       const passwordHash = await bcrypt.hash(password, salt);
 
-      // Create user
+      // Create user (role defaults to "user")
       const user = await User.create({
         username,
         email,
@@ -53,7 +53,7 @@ router.post(
             _id: userId,
             username: user.username,
             email: user.email,
-            token: generateToken(userId, user.username, user.email),
+            token: generateToken(userId, user.username, user.email, user.role),
           },
         });
       } else {
@@ -87,7 +87,7 @@ router.post(
             _id: userId,
             username: user.username,
             email: user.email,
-            token: generateToken(userId, user.username, user.email),
+            token: generateToken(userId, user.username, user.email, user.role),
           },
         });
       } else {

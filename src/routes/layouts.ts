@@ -2,6 +2,9 @@ import { Router, Request, Response, NextFunction } from "express";
 import { AppError } from "../middleware/errorHandler";
 import { layoutStore } from "../services/layoutStore";
 import { WorkspaceObject } from "../types";
+import type { CanonicalScene } from "../types/scene";
+import LayoutLike from "../models/LayoutLike";
+import type { AuthRequest } from "../middleware/authMiddleware";
 
 const router = Router();
 
@@ -59,10 +62,53 @@ router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
+// POST /api/layouts/:id/like - Like/unlike a layout
+router.post(
+  "/:id/like",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const authReq = req as AuthRequest;
+      if (!authReq.user) {
+        throw new AppError("Not authorized", 401);
+      }
+
+      const { id } = req.params;
+      const userId = authReq.user.id;
+
+      const layout = await layoutStore.getById(id);
+      if (!layout) {
+        throw new AppError("Layout not found", 404);
+      }
+
+      const existing = await LayoutLike.findOne({ layoutId: id, userId });
+
+      if (existing) {
+        await LayoutLike.deleteOne({ _id: existing.id });
+        layout.stats.likes = Math.max(0, (layout.stats.likes || 0) - 1);
+      } else {
+        await LayoutLike.create({ layoutId: id, userId });
+        layout.stats.likes = (layout.stats.likes || 0) + 1;
+      }
+
+      await layout.save();
+
+      res.json({
+        success: true,
+        data: {
+          id: layout.id,
+          stats: layout.stats,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // POST /api/layouts - Create a new layout
 router.post("/", async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { name, objects, userId, isPublic } = req.body;
+    const { name, objects, userId, isPublic, scene } = req.body;
 
     // Validation
     if (!name || typeof name !== "string" || name.trim().length === 0) {
@@ -86,11 +132,15 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
       }
     );
 
+    const canonicalScene: CanonicalScene | undefined =
+      scene && typeof scene === "object" ? (scene as CanonicalScene) : undefined;
+
     const layout = await layoutStore.create({
       name: name.trim(),
       objects: validObjects,
       userId,
       isPublic,
+      scene: canonicalScene,
     });
 
     res.status(201).json({
@@ -103,11 +153,61 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
+// POST /api/layouts/:id/remix - Remix a layout into a new one
+router.post(
+  "/:id/remix",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const authReq = req as AuthRequest;
+      if (!authReq.user) {
+        throw new AppError("Not authorized", 401);
+      }
+
+      const { id } = req.params;
+      const source = await layoutStore.getById(id);
+
+      if (!source) {
+        throw new AppError("Layout not found", 404);
+      }
+
+      const name =
+        typeof req.body?.name === "string" && req.body.name.trim().length > 0
+          ? req.body.name.trim()
+          : `${source.name} (Remix)`;
+
+      const remixed = await layoutStore.create({
+        name,
+        objects: source.objects,
+        userId: authReq.user.id,
+        isPublic: false,
+        scene: source.scene,
+        parentLayoutId: source.id,
+        provenance: {
+          originalLayoutId: source.id,
+          originalOwnerId: source.userId,
+        },
+      });
+
+      source.stats.remixes = (source.stats.remixes || 0) + 1;
+      source.forkCount = (source.forkCount || 0) + 1;
+      await source.save();
+
+      res.status(201).json({
+        success: true,
+        data: remixed,
+        message: "Layout remixed successfully",
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // PUT /api/layouts/:id - Update a layout
 router.put("/:id", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    const { name, objects, isPublic } = req.body;
+    const { name, objects, isPublic, scene } = req.body;
 
     const exists = await layoutStore.exists(id);
     if (!exists) {
@@ -118,6 +218,7 @@ router.put("/:id", async (req: Request, res: Response, next: NextFunction) => {
       name?: string;
       objects?: WorkspaceObject[];
       isPublic?: boolean;
+      scene?: CanonicalScene;
     } = {};
 
     if (name !== undefined) {
@@ -144,6 +245,13 @@ router.put("/:id", async (req: Request, res: Response, next: NextFunction) => {
         }
       );
       updates.objects = validObjects;
+    }
+
+    if (scene !== undefined) {
+      if (typeof scene !== "object") {
+        throw new AppError("scene must be an object if provided", 400);
+      }
+      updates.scene = scene as CanonicalScene;
     }
 
     if (isPublic !== undefined) {

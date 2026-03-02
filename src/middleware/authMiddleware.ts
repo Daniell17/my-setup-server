@@ -7,6 +7,7 @@ export interface AuthRequest extends Request {
     id: string;
     username: string;
     email: string;
+    role: "user" | "admin";
   };
 }
 
@@ -32,6 +33,7 @@ export const protect = async (
         id: decoded.id,
         username: decoded.username,
         email: decoded.email,
+        role: decoded.role || "user",
       };
 
       return next();

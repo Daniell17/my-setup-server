@@ -11,6 +11,7 @@ export interface IObjectTemplate extends Document {
   price: number;
   thumbnailUrl?: string;
   modelUrl?: string;
+  brandId?: string;
 }
 
 const ObjectTemplateSchema: Schema = new Schema({
@@ -24,6 +25,7 @@ const ObjectTemplateSchema: Schema = new Schema({
   price: { type: Number, default: 0 },
   thumbnailUrl: { type: String },
   modelUrl: { type: String },
+  brandId: { type: String, index: true },
 }, {
   timestamps: true,
   toJSON: {
