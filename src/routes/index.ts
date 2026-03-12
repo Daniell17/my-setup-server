@@ -8,6 +8,7 @@ import commentRoutes from "./comments";
 import reconstructRoutes from "./reconstruct";
 import marketplaceRoutes from "./marketplace";
 import adminRoutes from "./admin";
+import collectionRoutes from "./collections";
 
 const router = Router();
 
@@ -21,6 +22,7 @@ router.use("/comments", commentRoutes);
 router.use("/reconstruct", reconstructRoutes);
 router.use("/marketplace", marketplaceRoutes);
 router.use("/admin", adminRoutes);
+router.use("/collections", collectionRoutes);
 
 // API info endpoint
 router.get("/", (req: Request, res: Response) => {
